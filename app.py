@@ -59,69 +59,72 @@ if uploaded_file:
         y.append(scaled_data[i, 0])
     X, y = np.array(X), np.array(y)
 
-    train_size = int(len(X) * 0.8)
-    X_train, y_train = X[:train_size], y[:train_size]
+    if len(X) == 0:
+        st.error("Ikke nok data til at lave forecast. Tilføj flere rækker til din CSV.")
+    else:
+        train_size = int(len(X) * 0.8)
+        X_train, y_train = X[:train_size], y[:train_size]
 
-    model = Sequential()
-    model.add(LSTM(50, activation='relu', input_shape=(X_train.shape[1], X_train.shape[2])))
-    model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
+        model = Sequential()
+        model.add(LSTM(50, activation='relu', input_shape=(X_train.shape[1], X_train.shape[2])))
+        model.add(Dense(1))
+        model.compile(optimizer='adam', loss='mse')
 
-    st.info("Træner LSTM-model...")
-    model.fit(X_train, y_train, epochs=100, verbose=0)
-    st.success("✅ LSTM færdigtrænet")
+        st.info("Træner LSTM-model...")
+        model.fit(X_train, y_train, epochs=100, verbose=0)
+        st.success("✅ LSTM færdigtrænet")
 
-    st.info("Træner Random Forest (baseline)...")
-    rf = RandomForestRegressor()
-    rf.fit(X_train.reshape(X_train.shape[0], -1), y_train)
-    rf_pred = rf.predict(X_train.reshape(X_train.shape[0], -1))
-    rf_mse = mean_squared_error(y_train, rf_pred)
-    st.write(f"🌲 Random Forest MSE (train): {rf_mse:.2f}")
+        st.info("Træner Random Forest (baseline)...")
+        rf = RandomForestRegressor()
+        rf.fit(X_train.reshape(X_train.shape[0], -1), y_train)
+        rf_pred = rf.predict(X_train.reshape(X_train.shape[0], -1))
+        rf_mse = mean_squared_error(y_train, rf_pred)
+        st.write(f"🌲 Random Forest MSE (train): {rf_mse:.2f}")
 
-    forecast_horizon = 12
-    last_sequence = scaled_data[-sequence_length:]
-    predictions = []
-    future_external = np.array([[future_kampagne, future_helligdag, 0, 0, 0, 0]])
+        forecast_horizon = 12
+        last_sequence = scaled_data[-sequence_length:]
+        predictions = []
+        future_external = np.array([[future_kampagne, future_helligdag, 0, 0, 0, 0]])
 
-    for _ in range(forecast_horizon):
-        pred_scaled = model.predict(last_sequence.reshape(1, sequence_length, X.shape[2]), verbose=0)[0][0]
-        predictions.append(pred_scaled)
-        new_row = np.concatenate(([pred_scaled], future_external.flatten()))
-        last_sequence = np.append(last_sequence[1:], [new_row], axis=0)
+        for _ in range(forecast_horizon):
+            pred_scaled = model.predict(last_sequence.reshape(1, sequence_length, X.shape[2]), verbose=0)[0][0]
+            predictions.append(pred_scaled)
+            new_row = np.concatenate(([pred_scaled], future_external.flatten()))
+            last_sequence = np.append(last_sequence[1:], [new_row], axis=0)
 
-    demand_min = scaler.data_min_[0]
-    demand_max = scaler.data_max_[0]
-    inversed_pred = np.array(predictions) * (demand_max - demand_min) + demand_min
+        demand_min = scaler.data_min_[0]
+        demand_max = scaler.data_max_[0]
+        inversed_pred = np.array(predictions) * (demand_max - demand_min) + demand_min
 
-    last_date = df['dato'].iloc[-1]
-    future_dates = [last_date + timedelta(weeks=i+1) for i in range(forecast_horizon)]
+        last_date = df['dato'].iloc[-1]
+        future_dates = [last_date + timedelta(weeks=i+1) for i in range(forecast_horizon)]
 
-    forecast_df = pd.DataFrame({
-        'Dato': future_dates,
-        'Forventet efterspørgsel': np.round(inversed_pred).astype(int)
-    })
+        forecast_df = pd.DataFrame({
+            'Dato': future_dates,
+            'Forventet efterspørgsel': np.round(inversed_pred).astype(int)
+        })
 
-    st.subheader("🔮 Prognose")
-    st.dataframe(forecast_df)
+        st.subheader("🔮 Prognose")
+        st.dataframe(forecast_df)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df['dato'], df['demand'], label="Historisk efterspørgsel")
-    ax.plot(forecast_df['Dato'], forecast_df['Forventet efterspørgsel'], label="Forecast", linestyle="--", marker='o')
-    ax.set_title("Avanceret Efterspørgselsprognose")
-    ax.set_xlabel("Dato")
-    ax.set_ylabel("Efterspørgsel")
-    ax.legend()
-    ax.grid(True)
-    st.pyplot(fig)
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(df['dato'], df['demand'], label="Historisk efterspørgsel")
+        ax.plot(forecast_df['Dato'], forecast_df['Forventet efterspørgsel'], label="Forecast", linestyle="--", marker='o')
+        ax.set_title("Avanceret Efterspørgselsprognose")
+        ax.set_xlabel("Dato")
+        ax.set_ylabel("Efterspørgsel")
+        ax.legend()
+        ax.grid(True)
+        st.pyplot(fig)
 
-    total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
-    seneste_efterspørgsel = df['demand'].iloc[-1]
-    forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
-    ændring = forventet_uge_1 - seneste_efterspørgsel
-    seneste_kampagner = df['kampagne'].tail(10).sum()
-    seneste_helligdage = df['helligdag'].tail(10).sum()
+        total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
+        seneste_efterspørgsel = df['demand'].iloc[-1]
+        forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
+        ændring = forventet_uge_1 - seneste_efterspørgsel
+        seneste_kampagner = df['kampagne'].tail(10).sum()
+        seneste_helligdage = df['helligdag'].tail(10).sum()
 
-    forklaring = f"""
+        forklaring = f"""
 📈 **Anbefaling: Bestil cirka {total_forecast} stk de næste 12 uger.**
 
 - Seneste kendte efterspørgsel: {seneste_efterspørgsel} stk
@@ -130,14 +133,14 @@ if uploaded_file:
 
 Modellen tager højde for kampagner, sæsonmønstre, pris og vejrpåvirkning i data.
 """
-    if seneste_kampagner:
-        forklaring += f"- {seneste_kampagner} kampagner påvirkede de sidste uger\n"
-    if seneste_helligdage:
-        forklaring += f"- {seneste_helligdage} helligdage registreret i perioden\n"
+        if seneste_kampagner:
+            forklaring += f"- {seneste_kampagner} kampagner påvirkede de sidste uger\n"
+        if seneste_helligdage:
+            forklaring += f"- {seneste_helligdage} helligdage registreret i perioden\n"
 
-    forklaring += """
+        forklaring += """
 
 ✅ Prognosen er baseret på 10 ugers historik, mønstre og variabler, og kan justeres med nye input.
-    """
-    st.markdown(forklaring)
-    st.download_button("📥 Download forecast som CSV", forecast_df.to_csv(index=False), file_name="forecast.csv")
+        """
+        st.markdown(forklaring)
+        st.download_button("📥 Download forecast som CSV", forecast_df.to_csv(index=False), file_name="forecast.csv")
