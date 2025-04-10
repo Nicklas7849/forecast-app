@@ -103,7 +103,39 @@ if uploaded_file:
         'Dato': future_dates,
         'Forventet efterspørgsel': np.round(inversed_pred.flatten()).astype(int)
     })
-    
+    # Samlet forecast og forklaring
+total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
+
+# Hvis 'demand' ikke findes fordi du ikke har omdøbt endnu
+if 'demand' in df.columns:
+    seneste_efterspørgsel = df['demand'].iloc[-1]
+else:
+    seneste_efterspørgsel = df['antal_solgt'].iloc[-1]
+
+forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
+ændring = forventet_uge_1 - seneste_efterspørgsel
+
+seneste_kampagner = df['kampagne'].tail(10).sum() if 'kampagne' in df.columns else 0
+seneste_helligdage = df['helligdag'].tail(10).sum() if 'helligdag' in df.columns else 0
+
+forklaring = f"""
+📈 **Anbefaling: Bestil cirka {total_forecast} stk de næste 4 uger.**
+
+Modellen har analyseret de seneste 10 uger og vurderer:
+- Seneste kendte efterspørgsel: **{seneste_efterspørgsel} stk**
+- Forventet efterspørgsel i kommende uge: **{int(forventet_uge_1)} stk**
+- Det er en **{'stigning' if ændring > 0 else 'reduktion'} på {abs(int(ændring))} stk**
+"""
+
+if seneste_kampagner > 0:
+    forklaring += f"- **{seneste_kampagner} kampagner** i de sidste 10 uger påvirker forudsigelsen\n"
+if seneste_helligdage > 0:
+    forklaring += f"- **{seneste_helligdage} helligdage** kan have dæmpet efterspørgslen\n"
+
+forklaring += "\n📊 Prognosen bygger på historiske mønstre og seneste data."
+
+st.markdown(forklaring)
+
     st.subheader("📊 Prognose – de næste 4 uger")
     st.dataframe(forecast_df)
     
