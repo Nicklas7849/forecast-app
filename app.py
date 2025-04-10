@@ -1,4 +1,4 @@
-# Udvidet version af din forecast-app med forbedringer
+# Avanceret Forecast-app med ekstra forbedringer
 
 import streamlit as st
 import pandas as pd
@@ -17,7 +17,7 @@ st.title("📦 AI Forecast (Avanceret) – Efterspørgselsprognose med ekstra va
 st.markdown("""
 Upload din .csv-fil med mindst:
 - **dato**, **antal_solgt**, **kampagne**, **helligdag**
-- Valgfrit: **pris**, **vejr**, **produkt**
+- Valgfrit: **pris**, **vejr**, **produkt**, **lagerstatus**, **annonceringsomkostning**
 """)
 
 uploaded_file = st.file_uploader("Upload CSV-fil", type="csv")
@@ -28,17 +28,20 @@ if uploaded_file:
 
     df = df.rename(columns={'antal_solgt': 'demand'})
 
-    for col in ['kampagne', 'helligdag', 'pris', 'vejr']:
+    for col in ['kampagne', 'helligdag', 'pris', 'vejr', 'lagerstatus', 'annonceringsomkostning']:
         if col not in df.columns:
             df[col] = 0
 
     df['uge'] = df['dato'].dt.isocalendar().week
     df['måned'] = df['dato'].dt.month
-    df['år'] = df['dato'].dt.year
+    df['ferie'] = df['måned'].apply(lambda x: 1 if x in [7, 12] else 0)
 
     if 'produkt' in df.columns:
         valgte_produkt = st.selectbox("Vælg produkt", df['produkt'].unique())
         df = df[df['produkt'] == valgte_produkt]
+
+    if df.isnull().sum().any():
+        st.warning("⚠️ Data indeholder manglende værdier. Kontroller venligst.")
 
     st.subheader("📄 Inputdata (første 10 rækker)")
     st.dataframe(df.head(10))
@@ -46,7 +49,7 @@ if uploaded_file:
     future_kampagne = st.slider("Fremtidig kampagneintensitet (0-1)", 0.0, 1.0, 0.0, step=0.1)
     future_helligdag = st.slider("Fremtidige helligdage (0-1)", 0.0, 1.0, 0.0, step=0.1)
 
-    features = ['demand', 'kampagne', 'helligdag', 'pris', 'vejr', 'uge', 'måned']
+    features = ['demand', 'kampagne', 'helligdag', 'pris', 'vejr', 'lagerstatus', 'annonceringsomkostning', 'uge', 'måned', 'ferie']
     data = df[features].copy()
 
     scaler = MinMaxScaler()
@@ -84,7 +87,7 @@ if uploaded_file:
         forecast_horizon = 12
         last_sequence = scaled_data[-sequence_length:]
         predictions = []
-        future_external = np.array([[future_kampagne, future_helligdag, 0, 0, 0, 0]])
+        future_external = np.array([[future_kampagne, future_helligdag, 0, 0, 0, 0, 0, 0, 0]])
 
         for _ in range(forecast_horizon):
             pred_scaled = model.predict(last_sequence.reshape(1, sequence_length, X.shape[2]), verbose=0)[0][0]
@@ -103,6 +106,8 @@ if uploaded_file:
             'Dato': future_dates,
             'Forventet efterspørgsel': np.round(inversed_pred).astype(int)
         })
+        forecast_df['Nedre_grænse'] = (forecast_df['Forventet efterspørgsel'] * 0.85).astype(int)
+        forecast_df['Øvre_grænse'] = (forecast_df['Forventet efterspørgsel'] * 1.15).astype(int)
 
         st.subheader("🔮 Prognose")
         st.dataframe(forecast_df)
@@ -110,6 +115,7 @@ if uploaded_file:
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(df['dato'], df['demand'], label="Historisk efterspørgsel")
         ax.plot(forecast_df['Dato'], forecast_df['Forventet efterspørgsel'], label="Forecast", linestyle="--", marker='o')
+        ax.fill_between(forecast_df['Dato'], forecast_df['Nedre_grænse'], forecast_df['Øvre_grænse'], color='gray', alpha=0.3, label="Usikkerhedsinterval")
         ax.set_title("Avanceret Efterspørgselsprognose")
         ax.set_xlabel("Dato")
         ax.set_ylabel("Efterspørgsel")
@@ -117,30 +123,4 @@ if uploaded_file:
         ax.grid(True)
         st.pyplot(fig)
 
-        total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
-        seneste_efterspørgsel = df['demand'].iloc[-1]
-        forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
-        ændring = forventet_uge_1 - seneste_efterspørgsel
-        seneste_kampagner = df['kampagne'].tail(10).sum()
-        seneste_helligdage = df['helligdag'].tail(10).sum()
-
-        forklaring = f"""
-📈 **Anbefaling: Bestil cirka {total_forecast} stk de næste 12 uger.**
-
-- Seneste kendte efterspørgsel: {seneste_efterspørgsel} stk
-- Forventet uge 1: {forventet_uge_1} stk
-- {'Stigning' if ændring > 0 else 'Reduktion'} på {abs(ændring)} stk
-
-Modellen tager højde for kampagner, sæsonmønstre, pris og vejrpåvirkning i data.
-"""
-        if seneste_kampagner:
-            forklaring += f"- {seneste_kampagner} kampagner påvirkede de sidste uger\n"
-        if seneste_helligdage:
-            forklaring += f"- {seneste_helligdage} helligdage registreret i perioden\n"
-
-        forklaring += """
-
-✅ Prognosen er baseret på 10 ugers historik, mønstre og variabler, og kan justeres med nye input.
-        """
-        st.markdown(forklaring)
         st.download_button("📥 Download forecast som CSV", forecast_df.to_csv(index=False), file_name="forecast.csv")
