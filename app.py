@@ -115,17 +115,28 @@ if uploaded_file:
     forklaring = f"""
 📈 **Anbefaling: Bestil cirka {total_forecast} stk de næste 4 uger.**
 
-Modellen har analyseret de seneste 10 uger og vurderer:
+Denne anbefaling er baseret på en LSTM-model, der har analyseret dine seneste 10 ugers salgsdata, kombineret med tilstedeværelsen af kampagner og helligdage.
+
 - Seneste kendte efterspørgsel: **{seneste_efterspørgsel} stk**
-- Forventet efterspørgsel i kommende uge: **{int(forventet_uge_1)} stk**
-- Det er en **{'stigning' if ændring > 0 else 'reduktion'} på {abs(int(ændring))} stk**
+- Forventet efterspørgsel i uge 1: **{int(forventet_uge_1)} stk**
+- Det svarer til en **{'stigning' if ændring > 0 else 'reduktion'} på {abs(int(ændring))} stk** sammenlignet med sidste kendte niveau.
 
+Modellen har identificeret en {'positiv tendens' if ændring > 0 else 'aftagende efterspørgsel'} i dine seneste data, som afspejler sig i prognosen for de kommende uger.
 """
-    if seneste_kampagner > 0:
-        forklaring += f"- **{seneste_kampagner} kampagner** i de sidste 10 uger påvirker forudsigelsen\n"
-    if seneste_helligdage > 0:
-        forklaring += f"- **{seneste_helligdage} helligdage** kan have dæmpet efterspørgslen\n"
 
-    forklaring += "\n📊 Prognosen bygger på historiske mønstre og seneste data."
+if seneste_kampagner > 0:
+    forklaring += f"- Der har været **{seneste_kampagner} aktive kampagner** i de seneste 10 uger, hvilket tyder på et kunstigt løft i efterspørgslen.\n"
+if seneste_helligdage > 0:
+    forklaring += f"- **{seneste_helligdage} helligdage** kan have reduceret efterspørgslen midlertidigt, hvilket modellen tager højde for.\n"
 
-    st.markdown(forklaring)
+forklaring += f"""
+
+📌 **Derfor anbefaler modellen et bestillingsniveau på {total_forecast} stk**, som balancerer forventet efterspørgsel, observeret trend og eventuelle forvridninger fra kampagner og helligdage.
+
+Denne beslutningsstøtte kan bruges til at:
+- Undgå underbeholdning i tilfælde af stigende tendens
+- Minimere overbeholdning i perioder med faldende efterspørgsel
+- Optimere lager og likviditet med datadrevet præcision
+"""
+
+st.markdown(forklaring)
