@@ -119,8 +119,44 @@ if uploaded_file:
     ax.grid(True)
     st.pyplot(fig)
     
-    # Udregn samlet forecast og lav en anbefaling
-    total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
+# Udregn samlet forecast
+total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
+
+# Beregn ændring i sidste kendte efterspørgsel
+if 'demand' in df.columns:
+    seneste_efterspørgsel = df['demand'].iloc[-1]
+else:
+    seneste_efterspørgsel = df['antal_solgt'].iloc[-1]  # fallback
+
+forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
+ændring = forventet_uge_1 - seneste_efterspørgsel
+
+# Vurder om kampagne eller helligdag har været aktiv i de seneste uger
+seneste_kampagner = df['kampagne'].tail(10).sum() if 'kampagne' in df.columns else 0
+seneste_helligdage = df['helligdag'].tail(10).sum() if 'helligdag' in df.columns else 0
+
+# Forklaringsblok
+forklaring = f"""
+📈 **Anbefaling: Bestil cirka {total_forecast} stk de næste 4 uger.**
+
+Modellen har analyseret de seneste 10 uger og vurderer:
+- Seneste kendte efterspørgsel: **{seneste_efterspørgsel} stk**
+- Forventet efterspørgsel i kommende uge: **{int(forventet_uge_1)} stk**
+- Det er en **{'stigning' if ændring > 0 else 'reduktion'} på {abs(int(ændring))} stk**
+
+"""
+
+# Tilføj kampagne og helligdag hvis relevant
+if seneste_kampagner > 0:
+    forklaring += f"- **{seneste_kampagner} kampagner** i de sidste 10 uger påvirker forudsigelsen\n"
+if seneste_helligdage > 0:
+    forklaring += f"- **{seneste_helligdage} helligdage** kan have dæmpet efterspørgslen\n"
+
+forklaring += "\n📊 Prognosen bygger på historiske mønstre og seneste data."
+
+# Vis forklaring
+st.markdown(forklaring)
+
 # Beregn ændring i sidste kendte efterspørgsel
 seneste_efterspørgsel = df['demand'].iloc[-1]
 forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
