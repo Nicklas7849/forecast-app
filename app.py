@@ -121,7 +121,13 @@ forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
 seneste_kampagner = df['kampagne'].tail(10).sum() if 'kampagne' in df.columns else 0
 seneste_helligdage = df['helligdag'].tail(10).sum() if 'helligdag' in df.columns else 0
 
-# Og så kommer forklaring = f"""... bagefter
+    # Forklarende anbefaling
+    total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
+    seneste_efterspørgsel = df['demand'].iloc[-1]
+    forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
+    ændring = forventet_uge_1 - seneste_efterspørgsel
+    seneste_kampagner = df['kampagne'].tail(10).sum() if 'kampagne' in df.columns else 0
+    seneste_helligdage = df['helligdag'].tail(10).sum() if 'helligdag' in df.columns else 0
 
     forklaring = f"""
 📈 **Anbefaling: Bestil cirka {total_forecast} stk de næste 4 uger.**
@@ -135,12 +141,12 @@ Denne anbefaling er baseret på en LSTM-model, der har analyseret dine seneste 1
 Modellen har identificeret en {'positiv tendens' if ændring > 0 else 'aftagende efterspørgsel'} i dine seneste data, som afspejler sig i prognosen for de kommende uger.
 """
 
-if seneste_kampagner > 0:
-    forklaring += f"- Der har været **{seneste_kampagner} aktive kampagner** i de seneste 10 uger, hvilket tyder på et kunstigt løft i efterspørgslen.\n"
-if seneste_helligdage > 0:
-    forklaring += f"- **{seneste_helligdage} helligdage** kan have reduceret efterspørgslen midlertidigt, hvilket modellen tager højde for.\n"
+    if seneste_kampagner > 0:
+        forklaring += f"- Der har været **{seneste_kampagner} aktive kampagner** i de seneste 10 uger, hvilket tyder på et kunstigt løft i efterspørgslen.\n"
+    if seneste_helligdage > 0:
+        forklaring += f"- **{seneste_helligdage} helligdage** kan have reduceret efterspørgslen midlertidigt, hvilket modellen tager højde for.\n"
 
-forklaring += f"""
+    forklaring += f"""
 
 📌 **Derfor anbefaler modellen et bestillingsniveau på {total_forecast} stk**, som balancerer forventet efterspørgsel, observeret trend og eventuelle forvridninger fra kampagner og helligdage.
 
@@ -150,4 +156,5 @@ Denne beslutningsstøtte kan bruges til at:
 - Optimere lager og likviditet med datadrevet præcision
 """
 
-st.markdown(forklaring)
+    st.markdown(forklaring)
+
