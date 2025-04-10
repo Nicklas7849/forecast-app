@@ -35,11 +35,11 @@ if uploaded_file:
     st.write("**Inputdata:**")
     st.dataframe(df.head(10))
 
-    # Vælg features – vi bruger nu 3 variable: demand, kampagne og helligdag
+    # Vælg features
     features = ['demand', 'kampagne', 'helligdag']
     data = df[features].copy()
 
-    # Skaler alle features
+    # Skaler features
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(data)
 
@@ -51,7 +51,7 @@ if uploaded_file:
         y.append(scaled_data[i, 0])
     X, y = np.array(X), np.array(y)
 
-    # Split data
+    # Split til træning
     train_size = int(len(X) * 0.8)
     X_train, y_train = X[:train_size], y[:train_size]
 
@@ -79,7 +79,7 @@ if uploaded_file:
     demand_max = scaler.data_max_[0]
     inversed_pred = np.array(predictions) * (demand_max - demand_min) + demand_min
 
-    # Datoer for forecast
+    # Datoer
     last_date = df['dato'].iloc[-1]
     future_dates = [last_date + timedelta(weeks=i+1) for i in range(4)]
 
@@ -103,23 +103,6 @@ if uploaded_file:
     ax.legend()
     ax.grid(True)
     st.pyplot(fig)
-
-    # Forklarende anbefaling
-    total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
-    seneste_efterspørgsel = df['demand'].iloc[-1]
-    forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
-    ændring = forventet_uge_1 - seneste_efterspørgsel
-    seneste_kampagner = df['kampagne'].tail(10).sum()
-    seneste_helligdage = df['helligdag'].tail(10).sum()
-
-# Beregn ændringer og kontekst
-seneste_efterspørgsel = df['demand'].iloc[-1]
-forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
-ændring = forventet_uge_1 - seneste_efterspørgsel
-
-# 👇 Tilføj disse to linjer
-seneste_kampagner = df['kampagne'].tail(10).sum() if 'kampagne' in df.columns else 0
-seneste_helligdage = df['helligdag'].tail(10).sum() if 'helligdag' in df.columns else 0
 
     # Forklarende anbefaling
     total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
@@ -157,4 +140,3 @@ Denne beslutningsstøtte kan bruges til at:
 """
 
     st.markdown(forklaring)
-
