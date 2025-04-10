@@ -136,7 +136,7 @@ forklaring += "\n📊 Prognosen bygger på historiske mønstre og seneste data."
 
 st.markdown(forklaring)
 
-    st.subheader("📊 Prognose – de næste 4 uger")
+st.subheader("📊 Prognose – de næste 4 uger")
     st.dataframe(forecast_df)
     
     # Vis graf: Plot historisk demand og forecast
