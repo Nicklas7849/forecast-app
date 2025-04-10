@@ -121,4 +121,32 @@ if uploaded_file:
     
     # Udregn samlet forecast og lav en anbefaling
     total_forecast = int(forecast_df['Forventet efterspørgsel'].sum())
-    st.success(f"📦 Anbefaling: Bestil cirka **{total_forecast} stk** de næste 4 uger.")
+# Beregn ændring i sidste kendte efterspørgsel
+seneste_efterspørgsel = df['demand'].iloc[-1]
+forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
+ændring = forventet_uge_1 - seneste_efterspørgsel
+
+# Vurder om kampagne eller helligdag har været aktiv i de seneste uger
+seneste_kampagner = df['kampagne'].tail(10).sum()
+seneste_helligdage = df['helligdag'].tail(10).sum()
+
+# Forklaringstekst
+forklaring = f"""
+📈 **Anbefaling: Bestil cirka {total_forecast} stk de næste 4 uger.**
+
+Modellen har set på de seneste 10 ugers udvikling og vurderer:
+- Den seneste efterspørgsel var **{seneste_efterspørgsel} stk**
+- Den første uge i forecast forventes at lande på **{int(forventet_uge_1)} stk**, hvilket er en {'stigning' if ændring > 0 else 'reduktion'} på ca. **{abs(int(ændring))} stk**
+
+"""
+
+# Tilføj påvirkning fra kampagner og helligdage
+if seneste_kampagner > 0:
+    forklaring += f"- Der var **{seneste_kampagner} kampagner** i de seneste 10 uger, hvilket kan have løftet salget\n"
+if seneste_helligdage > 0:
+    forklaring += f"- Der var **{seneste_helligdage} uger med helligdage**, som modellen også har taget højde for\n"
+
+forklaring += "\n📊 Modellen baserer sin anbefaling på tendenser, mønstre og variationer i dine seneste data."
+
+# Vis forklaring
+st.markdown(forklaring)
