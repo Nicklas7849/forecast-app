@@ -1,8 +1,6 @@
-# Eksempel på en minimal requirements.txt
-streamlit==1.25.0
-tensorflow==2.11.0
-keras==2.11.0
-scikit-learn==1.2.2
-pandas==2.0.3
-numpy==1.23.5
-matplotlib==3.6.2
+streamlit
+pandas
+numpy
+matplotlib
+scikit-learn
+tensorflow
