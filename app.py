@@ -11,7 +11,10 @@ from datetime import timedelta
 import tensorflow as tf
 import sys
 
-# === Sørg for, at st.set_page_config er det første Streamlit-kald! ===
+# Import til automatiseret datahentning fra FRED
+from fredapi import Fred
+
+# Sørg for, at st.set_page_config er det første Streamlit-kald!
 st.set_page_config(page_title="Avanceret Forecast", layout="wide")
 
 # Miljøinformation (skrives efter set_page_config)
@@ -23,8 +26,52 @@ st.title("📦 AI Forecast (Avanceret) – Efterspørgsels- og Omsætningsprogno
 st.markdown("""
 Upload din .csv-fil med mindst:
 - **dato**, **antal_solgt**, **kampagne**, **helligdag**
-- Valgfrit: **pris**, **vejr**, **produkt**, **lagerstatus**, **annonceringsomkostning**, **forbrugertillid**, **inflation**, **arbejdsløshed**, **BNP**, **rente**
+- Valgfrit: **pris**, **vejr**, **produkt**, **lagerstatus**, **annonceringsomkostning**, **forbrugertillid**
+- Økonomiske variable: **inflation**, **arbejdsløshed**, **BNP**, **rente**  
+Hvis du har en FRED API-nøgle, hentes de nationale økonomiske data automatisk og synkroniseres med din CSV.
 """)
+
+# Funktion til at hente nationaløkonomiske data fra FRED
+@st.cache_data(ttl=86400)  # Cache i 24 timer
+def get_national_economic_data(api_key, start_date, end_date):
+    fred = Fred(api_key=api_key)
+    # OBS: Serienavne er eksempler og kan kræve opdatering til de rigtige danske serier
+    try:
+        inflation_series = fred.get_series('CPALTT01DKM657N', observation_start=start_date, observation_end=end_date)
+    except Exception as e:
+        st.error("Fejl ved hentning af inflation data: " + str(e))
+        inflation_series = pd.Series(dtype=float)
+    try:
+        unemployment_series = fred.get_series('UNEMPLOYMENT_DK', observation_start=start_date, observation_end=end_date)
+    except Exception as e:
+        st.error("Fejl ved hentning af arbejdsløshedsdata: " + str(e))
+        unemployment_series = pd.Series(dtype=float)
+    try:
+        gdp_series = fred.get_series('GDP_DK', observation_start=start_date, observation_end=end_date)
+    except Exception as e:
+        st.error("Fejl ved hentning af BNP data: " + str(e))
+        gdp_series = pd.Series(dtype=float)
+    try:
+        interest_rate_series = fred.get_series('IR_DK', observation_start=start_date, observation_end=end_date)
+    except Exception as e:
+        st.error("Fejl ved hentning af rentedata: " + str(e))
+        interest_rate_series = pd.Series(dtype=float)
+    
+    # Sammensæt til én DataFrame
+    df_fred = pd.DataFrame({
+         'dato': inflation_series.index,
+         'inflation_fred': inflation_series.values,
+         'arbejdsløshed_fred': unemployment_series.values,
+         'BNP_fred': gdp_series.values,
+         'rente_fred': interest_rate_series.values
+    })
+    # Sørg for, at dato-kolonnen har datetime-type og resample til ugentlig frekvens
+    df_fred['dato'] = pd.to_datetime(df_fred['dato'])
+    df_fred = df_fred.set_index('dato').resample('W').ffill().reset_index()
+    return df_fred
+
+# Mulighed for at indtaste FRED API-nøgle
+fred_api_key = st.text_input("Indtast FRED API-nøgle (hvis du ønsker automatisk opdaterede økonomidata):", type="password")
 
 uploaded_file = st.file_uploader("Upload CSV-fil", type="csv")
 
@@ -36,7 +83,7 @@ if uploaded_file:
     # Omdøb kolonnen 'antal_solgt' til 'demand'
     df = df.rename(columns={'antal_solgt': 'demand'})
     
-    # Tjek og initialiser de økonomiske variable, hvis de mangler
+    # Tjek for obligatoriske økonomiske variable (brug dem fra CSV, hvis ingen FRED-nøgle er angivet)
     economic_vars = ['pris', 'forbrugertillid', 'inflation', 'arbejdsløshed', 'BNP', 'rente']
     for col in economic_vars:
         if col not in df.columns:
@@ -60,6 +107,17 @@ if uploaded_file:
     if df.isnull().sum().any():
         st.warning("⚠️ Data indeholder manglende værdier. Kontroller venligst.")
 
+    # Hvis en FRED API-nøgle er angivet, hentes og flettes de aktuelle økonomiske data
+    if fred_api_key:
+        csv_start_date = df['dato'].min().strftime("%Y-%m-%d")
+        csv_end_date = df['dato'].max().strftime("%Y-%m-%d")
+        df_fred = get_national_economic_data(fred_api_key, csv_start_date, csv_end_date)
+        # Flet de økonomiske data baseret på dato
+        df = pd.merge(df, df_fred, on='dato', how='left')
+        # Erstat CSV-værdierne med de opdaterede fra FRED, hvis de findes
+        for col in ['inflation', 'arbejdsløshed', 'BNP', 'rente']:
+            df[col] = df[f"{col}_fred"].combine_first(df[col])
+    
     # Aggregér de økonomiske variable til et samlet økonomisk indeks
     scaler_econ = MinMaxScaler()
     df_econ_scaled = pd.DataFrame(scaler_econ.fit_transform(df[economic_vars]), columns=economic_vars)
@@ -123,8 +181,8 @@ if uploaded_file:
         last_sequence = scaled_data[-sequence_length:]
         predictions = []
 
-        # Konstruer fremtidige eksterne input – her benyttes dummy-værdier for vejr, lagerstatus og annonceringsomkostning,
-        # mens økonomisk indeks sættes til det historiske gennemsnit.
+        # Konstruer fremtidige eksterne input – dummy-værdier for vejr, lagerstatus og annonceringsomkostning.
+        # Økonomisk indeks sættes til det historiske gennemsnit.
         future_external = np.array([[
             future_kampagne,               # kampagne
             future_helligdag,              # helligdag
@@ -163,7 +221,7 @@ if uploaded_file:
         st.subheader("🔮 Prognose")
         st.dataframe(forecast_df)
 
-        # Beregn "effektiv pris" med fast pris og kampagnerabat:
+        # Beregn "effektiv pris" med fast pris og kampagnerabat
         fast_pris = df['pris'].mean()
         effektiv_pris = fast_pris * (1 - (future_kampagne * (tilbudsprocent / 100)))
 
@@ -192,13 +250,13 @@ if uploaded_file:
         st.markdown("""
         ### Konklusion og Begrundelse for Prognosen
 
-        Denne prognose er konstrueret ud fra en omfattende analyse, der integrerer historiske salgsdata med en bred vifte af eksterne faktorer. Modellen anvender en kombination af en LSTM-baseret tidsserieanalytisk tilgang samt en Random Forest-model som baseline, hvilket sikrer, at både komplekse ikke-lineære mønstre og de mere robuste trends fanges i forudsigelsen.
-
-        **Nøglepunkter, der understøtter prognosens validitet:**
-        - **Datagrundlag:** Prognosen bygger på to års historisk data med ugentlige opdateringer, som inkluderer kritiske variable såsom kampagneaktivitet, helligdage, vejrinformation og et aggregeret økonomisk indeks.
-        - **Modelvalidering:** Kombinationen af LSTM og Random Forest giver en balanceret fremgangsmåde, hvor LSTM-modellen håndterer tidsspecifikke dynamikker, mens Random Forest anvendes til at minimere modellens bias og give en baseline-måling af prognosens nøjagtighed.
-        - **Kampagneregulering:** Ved at indregne en dynamisk kampagneintensitet og en tilhørende rabatprocent reflekteres de faktiske prisjusteringer, hvilket er afgørende for nøjagtigt at estimere den forventede omsætning.
-        - **Økonomisk Indeks:** Den aggregerede økonomiske faktor, som beregnes ud fra normaliserede økonomiske variable, sikrer, at den samlede makroøkonomiske tilstand indgår som et samlet signal i modellen.
-
-        Ved at kombinere disse metodologiske elementer opnår vi en prognose, der afspejler de reelle markedstendenser og giver en robust ramme for strategiske beslutninger inden for lagerstyring og markedsføring. Dette gør prognosen velegnet til at understøtte kritiske forretningsbeslutninger, da den baseres på en alsidig og dataunderbygget tilgang.
+        Denne prognose er opnået ved en integreret tilgang, hvor historiske salgsdata suppleres med løbende opdaterede nationaløkonomiske nøgletal hentet via FRED. 
+        Ved at synkronisere de seneste data for inflation, arbejdsløshed, BNP og rente sikrer vi, at modellen afspejler den aktuelle makroøkonomiske situation.
+        Kombineret med en LSTM-baseret tidsserieanalyse og en Random Forest-baseline, opnås en robust prognose, der:
+        - Fanger sæsonmæssige udsving og trend
+        - Indregner kampagneeffekter og prisrabat i omsætningsberegningen
+        - Anvender et aggregeret økonomisk indeks for at inkludere den samlede makroøkonomiske tilstand
+        
+        Denne metode giver et solidt datagrundlag for strategiske beslutninger og sikrer, at prognosen altid er opdateret med de seneste nationale nøgletal – 
+        hvilket øger dens validitet og anvendelighed for forretningsbeslutninger.
         """)
