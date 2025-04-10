@@ -11,6 +11,24 @@ from datetime import timedelta
 import tensorflow as tf
 import sys
 
+# === Flyt st.set_page_config op før andre st.*-kald ===
+st.set_page_config(page_title="Avanceret Forecast", layout="wide")
+
+# Derefter kan du skrive miljø-info mm.
+st.write("Python version:", sys.version)
+st.write("TensorFlow version:", tf.__version__)
+
+st.title("📦 AI Forecast (Avanceret) – Efterspørgsels- og Omsætningsprognose")
+
+st.markdown("""
+Upload din .csv-fil med mindst:
+- **dato**, **antal_solgt**, **kampagne**, **helligdag**
+- Valgfrit: **pris**, **vejr**, **produkt**, **lagerstatus**, **annonceringsomkostning**, **forbrugertillid**, **inflation**, **arbejdsløshed**, **BNP**, **rente**
+""")
+
+# ... resten af din kode (uændret) ...
+
+
 # === Miljøinformation og anbefalinger ===
 # Hvis du oplever fejl som f.eks. "name_scope_stack.pop" anbefales det at køre dette script med:
 # - Python 3.10 (ikke Python 3.12)
