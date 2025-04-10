@@ -112,6 +112,17 @@ if uploaded_file:
     seneste_kampagner = df['kampagne'].tail(10).sum()
     seneste_helligdage = df['helligdag'].tail(10).sum()
 
+# Beregn ændringer og kontekst
+seneste_efterspørgsel = df['demand'].iloc[-1]
+forventet_uge_1 = forecast_df['Forventet efterspørgsel'].iloc[0]
+ændring = forventet_uge_1 - seneste_efterspørgsel
+
+# 👇 Tilføj disse to linjer
+seneste_kampagner = df['kampagne'].tail(10).sum() if 'kampagne' in df.columns else 0
+seneste_helligdage = df['helligdag'].tail(10).sum() if 'helligdag' in df.columns else 0
+
+# Og så kommer forklaring = f"""... bagefter
+
     forklaring = f"""
 📈 **Anbefaling: Bestil cirka {total_forecast} stk de næste 4 uger.**
 
