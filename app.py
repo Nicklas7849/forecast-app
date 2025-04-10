@@ -50,7 +50,7 @@ def get_national_economic_data(api_key, start_date, end_date):
         unemployment_series = pd.Series(dtype=float)
     try:
         # OPDATERET: Brug "DNKGDPRQDSMEI" i stedet for "MKTGDNDKA646NWDB"
-        gdp_series = fred.get_series('DNKGDPRQDSMEI', observation_start=start_date, observation_end=end_date)
+        gdp_series = fred.get_series('CLVMNACSCAB1GQDK', observation_start=start_date, observation_end=end_date)
     except Exception as e:
         st.error("Fejl ved hentning af BNP: " + str(e))
         gdp_series = pd.Series(dtype=float)
