@@ -11,34 +11,13 @@ from datetime import timedelta
 import tensorflow as tf
 import sys
 
-# === Flyt st.set_page_config op før andre st.*-kald ===
+# === Sørg for at st.set_page_config er det første Streamlit-kald! ===
 st.set_page_config(page_title="Avanceret Forecast", layout="wide")
 
-# Derefter kan du skrive miljø-info mm.
+# Miljøinfo (skrives efter set_page_config)
 st.write("Python version:", sys.version)
 st.write("TensorFlow version:", tf.__version__)
 
-st.title("📦 AI Forecast (Avanceret) – Efterspørgsels- og Omsætningsprognose")
-
-st.markdown("""
-Upload din .csv-fil med mindst:
-- **dato**, **antal_solgt**, **kampagne**, **helligdag**
-- Valgfrit: **pris**, **vejr**, **produkt**, **lagerstatus**, **annonceringsomkostning**, **forbrugertillid**, **inflation**, **arbejdsløshed**, **BNP**, **rente**
-""")
-
-# ... resten af din kode (uændret) ...
-
-
-# === Miljøinformation og anbefalinger ===
-# Hvis du oplever fejl som f.eks. "name_scope_stack.pop" anbefales det at køre dette script med:
-# - Python 3.10 (ikke Python 3.12)
-# - TensorFlow 2.11 (samt tilsvarende Keras-version)
-# Du kan oprette et virtuelt miljø og installere pakken via en requirements.txt med indholdet angivet ovenfor.
-st.write("Python version:", sys.version)
-st.write("TensorFlow version:", tf.__version__)
-
-# === Opsætning af Streamlit ===
-st.set_page_config(page_title="Avanceret Forecast", layout="wide")
 st.title("📦 AI Forecast (Avanceret) – Efterspørgsels- og Omsætningsprognose")
 
 st.markdown("""
