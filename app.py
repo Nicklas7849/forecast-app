@@ -11,10 +11,10 @@ from datetime import timedelta
 import tensorflow as tf
 import sys
 
-# === Sørg for at st.set_page_config er det første Streamlit-kald! ===
+# === Sørg for, at st.set_page_config er det første Streamlit-kald! ===
 st.set_page_config(page_title="Avanceret Forecast", layout="wide")
 
-# Miljøinfo (skrives efter set_page_config)
+# Miljøinformation (skrives efter set_page_config)
 st.write("Python version:", sys.version)
 st.write("TensorFlow version:", tf.__version__)
 
@@ -73,7 +73,7 @@ if uploaded_file:
     future_helligdag = st.slider("Fremtidige helligdage (0-1)", 0.0, 1.0, 0.0, step=0.1)
     tilbudsprocent = st.slider("Tilbudsprocent ved kampagner (%)", 0, 50, 10, step=1)
 
-    # Udvælg features – de økonomiske variable er nu repræsenteret af 'økonomisk_indeks'
+    # Udvælg features – de økonomiske variable repræsenteres nu af 'økonomisk_indeks'
     features = ['demand', 'kampagne', 'helligdag', 'vejr', 'lagerstatus',
                 'annonceringsomkostning', 'økonomisk_indeks', 'uge', 'måned', 'ferie']
     data = df[features].copy()
@@ -187,3 +187,18 @@ if uploaded_file:
         st.pyplot(fig)
 
         st.download_button("📥 Download forecast som CSV", forecast_df.to_csv(index=False), file_name="forecast.csv")
+        
+        # Afsluttende forklaringstekst
+        st.markdown("""
+        ### Konklusion og Begrundelse for Prognosen
+
+        Denne prognose er konstrueret ud fra en omfattende analyse, der integrerer historiske salgsdata med en bred vifte af eksterne faktorer. Modellen anvender en kombination af en LSTM-baseret tidsserieanalytisk tilgang samt en Random Forest-model som baseline, hvilket sikrer, at både komplekse ikke-lineære mønstre og de mere robuste trends fanges i forudsigelsen.
+
+        **Nøglepunkter, der understøtter prognosens validitet:**
+        - **Datagrundlag:** Prognosen bygger på to års historisk data med ugentlige opdateringer, som inkluderer kritiske variable såsom kampagneaktivitet, helligdage, vejrinformation og et aggregeret økonomisk indeks.
+        - **Modelvalidering:** Kombinationen af LSTM og Random Forest giver en balanceret fremgangsmåde, hvor LSTM-modellen håndterer tidsspecifikke dynamikker, mens Random Forest anvendes til at minimere modellens bias og give en baseline-måling af prognosens nøjagtighed.
+        - **Kampagneregulering:** Ved at indregne en dynamisk kampagneintensitet og en tilhørende rabatprocent reflekteres de faktiske prisjusteringer, hvilket er afgørende for nøjagtigt at estimere den forventede omsætning.
+        - **Økonomisk Indeks:** Den aggregerede økonomiske faktor, som beregnes ud fra normaliserede økonomiske variable, sikrer, at den samlede makroøkonomiske tilstand indgår som et samlet signal i modellen.
+
+        Ved at kombinere disse metodologiske elementer opnår vi en prognose, der afspejler de reelle markedstendenser og giver en robust ramme for strategiske beslutninger inden for lagerstyring og markedsføring. Dette gør prognosen velegnet til at understøtte kritiske forretningsbeslutninger, da den baseres på en alsidig og dataunderbygget tilgang.
+        """)
