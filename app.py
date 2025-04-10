@@ -11,13 +11,13 @@ from datetime import timedelta
 import tensorflow as tf
 import sys
 
-# Import til automatiseret datahentning fra FRED
+# Import til automatisk datahentning fra FRED
 from fredapi import Fred
 
-# Sørg for, at st.set_page_config er det første Streamlit-kald!
+# Sørg for, at st.set_page_config er det allerførste Streamlit-kald!
 st.set_page_config(page_title="Avanceret Forecast", layout="wide")
 
-# Miljøinformation (skrives efter set_page_config)
+# Miljøinformation
 st.write("Python version:", sys.version)
 st.write("TensorFlow version:", tf.__version__)
 
@@ -28,36 +28,41 @@ Upload din .csv-fil med mindst:
 - **dato**, **antal_solgt**, **kampagne**, **helligdag**
 - Valgfrit: **pris**, **vejr**, **produkt**, **lagerstatus**, **annonceringsomkostning**, **forbrugertillid**
 - Økonomiske variable: **inflation**, **arbejdsløshed**, **BNP**, **rente**  
+
 Hvis du har en FRED API-nøgle, hentes de nationale økonomiske data automatisk og synkroniseres med din CSV.
 """)
 
-# Funktion til at hente nationaløkonomiske data fra FRED
-@st.cache_data(ttl=86400)  # Cache i 24 timer
+# Funktion til at hente nationale økonomiske data fra FRED for Danmark
+@st.cache_data(ttl=86400)  # Cache 24 timer
 def get_national_economic_data(api_key, start_date, end_date):
     fred = Fred(api_key=api_key)
-    # OBS: Serienavne er eksempler og kan kræve opdatering til de rigtige danske serier
+    # Gyldige FRED-seriekoder til Danmark:
+    # Inflation: 'CPALTT01DKM657N'
+    # Arbejdsløshed: 'LRHUTTTTDKM156S'
+    # BNP: 'MKTGDNDKA646NWDB'
+    # Rente (10-årig statsobligationsrente): 'IRLTLT01DKM156N'
     try:
         inflation_series = fred.get_series('CPALTT01DKM657N', observation_start=start_date, observation_end=end_date)
     except Exception as e:
         st.error("Fejl ved hentning af inflation data: " + str(e))
         inflation_series = pd.Series(dtype=float)
     try:
-        unemployment_series = fred.get_series('UNEMPLOYMENT_DK', observation_start=start_date, observation_end=end_date)
+        unemployment_series = fred.get_series('LRHUTTTTDKM156S', observation_start=start_date, observation_end=end_date)
     except Exception as e:
-        st.error("Fejl ved hentning af arbejdsløshedsdata: " + str(e))
+        st.error("Fejl ved hentning af arbejdsløshed: " + str(e))
         unemployment_series = pd.Series(dtype=float)
     try:
-        gdp_series = fred.get_series('GDP_DK', observation_start=start_date, observation_end=end_date)
+        gdp_series = fred.get_series('MKTGDNDKA646NWDB', observation_start=start_date, observation_end=end_date)
     except Exception as e:
-        st.error("Fejl ved hentning af BNP data: " + str(e))
+        st.error("Fejl ved hentning af BNP: " + str(e))
         gdp_series = pd.Series(dtype=float)
     try:
-        interest_rate_series = fred.get_series('IR_DK', observation_start=start_date, observation_end=end_date)
+        interest_rate_series = fred.get_series('IRLTLT01DKM156N', observation_start=start_date, observation_end=end_date)
     except Exception as e:
         st.error("Fejl ved hentning af rentedata: " + str(e))
         interest_rate_series = pd.Series(dtype=float)
     
-    # Sammensæt til én DataFrame
+    # Sammensæt data til én DataFrame
     df_fred = pd.DataFrame({
          'dato': inflation_series.index,
          'inflation_fred': inflation_series.values,
@@ -65,13 +70,13 @@ def get_national_economic_data(api_key, start_date, end_date):
          'BNP_fred': gdp_series.values,
          'rente_fred': interest_rate_series.values
     })
-    # Sørg for, at dato-kolonnen har datetime-type og resample til ugentlig frekvens
+    # Sørg for datetime og resample til ugentlig frekvens (ffill)
     df_fred['dato'] = pd.to_datetime(df_fred['dato'])
     df_fred = df_fred.set_index('dato').resample('W').ffill().reset_index()
     return df_fred
 
-# Mulighed for at indtaste FRED API-nøgle
-fred_api_key = st.text_input("Indtast FRED API-nøgle (hvis du ønsker automatisk opdaterede økonomidata):", type="password")
+# Mulighed for at indtaste FRED API-nøgle (du kan også hardcode den for testformål)
+fred_api_key = st.text_input("Indtast FRED API-nøgle (eller indsæt her direkte):", value="eec7ebe4f9b5cf6161ed55af10fa00c0", type="password")
 
 uploaded_file = st.file_uploader("Upload CSV-fil", type="csv")
 
@@ -83,13 +88,13 @@ if uploaded_file:
     # Omdøb kolonnen 'antal_solgt' til 'demand'
     df = df.rename(columns={'antal_solgt': 'demand'})
     
-    # Tjek for obligatoriske økonomiske variable (brug dem fra CSV, hvis ingen FRED-nøgle er angivet)
+    # Tjek for de økonomiske variable; hvis de mangler, initialiseres de til 0
     economic_vars = ['pris', 'forbrugertillid', 'inflation', 'arbejdsløshed', 'BNP', 'rente']
     for col in economic_vars:
         if col not in df.columns:
             df[col] = 0
 
-    # Tjek for øvrige variable, der kan påvirke salget
+    # Tjek for øvrige variable der kan påvirke salget
     for col in ['kampagne', 'helligdag', 'vejr', 'lagerstatus', 'annonceringsomkostning']:
         if col not in df.columns:
             df[col] = 0
@@ -107,14 +112,14 @@ if uploaded_file:
     if df.isnull().sum().any():
         st.warning("⚠️ Data indeholder manglende værdier. Kontroller venligst.")
 
-    # Hvis en FRED API-nøgle er angivet, hentes og flettes de aktuelle økonomiske data
+    # Hvis FRED API-nøgle er angivet, hentes og flettes de aktuelle økonomiske data
     if fred_api_key:
         csv_start_date = df['dato'].min().strftime("%Y-%m-%d")
         csv_end_date = df['dato'].max().strftime("%Y-%m-%d")
         df_fred = get_national_economic_data(fred_api_key, csv_start_date, csv_end_date)
         # Flet de økonomiske data baseret på dato
         df = pd.merge(df, df_fred, on='dato', how='left')
-        # Erstat CSV-værdierne med de opdaterede fra FRED, hvis de findes
+        # Erstat værdier med de opdaterede fra FRED, hvis de findes
         for col in ['inflation', 'arbejdsløshed', 'BNP', 'rente']:
             df[col] = df[f"{col}_fred"].combine_first(df[col])
     
@@ -250,13 +255,11 @@ if uploaded_file:
         st.markdown("""
         ### Konklusion og Begrundelse for Prognosen
 
-        Denne prognose er opnået ved en integreret tilgang, hvor historiske salgsdata suppleres med løbende opdaterede nationaløkonomiske nøgletal hentet via FRED. 
-        Ved at synkronisere de seneste data for inflation, arbejdsløshed, BNP og rente sikrer vi, at modellen afspejler den aktuelle makroøkonomiske situation.
-        Kombineret med en LSTM-baseret tidsserieanalyse og en Random Forest-baseline, opnås en robust prognose, der:
-        - Fanger sæsonmæssige udsving og trend
-        - Indregner kampagneeffekter og prisrabat i omsætningsberegningen
-        - Anvender et aggregeret økonomisk indeks for at inkludere den samlede makroøkonomiske tilstand
-        
-        Denne metode giver et solidt datagrundlag for strategiske beslutninger og sikrer, at prognosen altid er opdateret med de seneste nationale nøgletal – 
-        hvilket øger dens validitet og anvendelighed for forretningsbeslutninger.
+        Denne prognose er opnået ved at integrere historiske salgsdata med løbende opdaterede nationale økonomiske nøgletal, 
+        som hentes direkte fra FRED via de gyldige seriekoder for Danmark. Ved at anvende en LSTM-baseret tidsserieanalyse kombineret med en Random Forest-baseline 
+        fanges både de komplekse, sæsonbestemte udsving og de langsigtede trends i salget. 
+        Kampagneeffekter og en dynamisk prisjustering indregnes i omsætningsberegningen, hvilket øger modellens nøjagtighed og forretningsrelevans.
+
+        Med denne tilgang sikres, at forecast-modellen altid arbejder med de nyeste data, hvilket øger validiteten af prognosen og giver et solidt grundlag 
+        for strategiske forretningsbeslutninger.
         """)
